@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "gea-mnemon-reproduce"
+version = "0.1.0"
+description = ""
+authors = ["kjchan"]
+readme = "README.md"
+packages = [{include = "gea_mnemon_reproduce"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
