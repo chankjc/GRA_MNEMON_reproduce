@@ -3,33 +3,40 @@ import os.path as osp
 import time
 
 import torch
-
 import torch_geometric.transforms as T
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--variational', action='store_true')
-parser.add_argument('--linear', action='store_true')
-parser.add_argument('--dataset', type=str, default='Cora',
-                    choices=['Cora', 'CiteSeer', 'PubMed'])
-parser.add_argument('--epochs', type=int, default=400)
+parser.add_argument("--variational", action="store_true")
+parser.add_argument("--linear", action="store_true")
+parser.add_argument(
+    "--dataset", type=str, default="Cora", choices=["Cora", "CiteSeer", "PubMed"]
+)
+parser.add_argument("--epochs", type=int, default=400)
 args = parser.parse_args()
 
 if torch.cuda.is_available():
-    device = torch.device('cuda')
-elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-    device = torch.device('mps')
+    device = torch.device("cuda")
+elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    device = torch.device("mps")
 else:
-    device = torch.device('cpu')
+    device = torch.device("cpu")
 
-transform = T.Compose([
-    T.NormalizeFeatures(),
-    T.ToDevice(device),
-    T.RandomLinkSplit(num_val=0.05, num_test=0.1, is_undirected=True,
-                      split_labels=True, add_negative_train_samples=False),
-])
-path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+transform = T.Compose(
+    [
+        T.NormalizeFeatures(),
+        T.ToDevice(device),
+        T.RandomLinkSplit(
+            num_val=0.05,
+            num_test=0.1,
+            is_undirected=True,
+            split_labels=True,
+            add_negative_train_samples=False,
+        ),
+    ]
+)
+path = osp.join(osp.dirname(osp.realpath(__file__)), "..", "data", "Planetoid")
 dataset = Planetoid(path, args.dataset, transform=transform)
 train_data, val_data, test_data = dataset[0]
 
@@ -115,7 +122,7 @@ for epoch in range(1, args.epochs + 1):
     start = time.time()
     loss = train()
     auc, ap = test(test_data)
-    print(f'Epoch: {epoch:03d}, AUC: {auc:.4f}, AP: {ap:.4f}')
+    print(f"Epoch: {epoch:03d}, AUC: {auc:.4f}, AP: {ap:.4f}")
     times.append(time.time() - start)
-    
+
 print(f"Median time per epoch: {torch.tensor(times).median():.4f}s")
