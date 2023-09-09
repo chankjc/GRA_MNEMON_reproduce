@@ -14,3 +14,8 @@ poetry
 poetry shell
 poetry install
 ```
+
+## pre-commit (Recommend)
+```
+pre-commit install
+```
