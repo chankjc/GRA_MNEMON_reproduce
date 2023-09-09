@@ -1,25 +1,32 @@
 import argparse
+import os
 import os.path as osp
 import time
 
 import torch
 import torch_geometric.transforms as T
-from torch_geometric.datasets import Planetoid
+from dotenv import load_dotenv
+from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
+
+load_dotenv()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--variational", action="store_true")
 parser.add_argument("--linear", action="store_true")
 parser.add_argument(
-    "--dataset", type=str, default="Cora", choices=["Cora", "CiteSeer", "PubMed"]
+    "--dataset",
+    type=str,
+    default="cora",
+    choices=["cora", "citeseer", "actor", "facebook"],
 )
 parser.add_argument("--epochs", type=int, default=400)
+parser.add_argument("--device", type=int, default=0)
+parser.add_argument("--learn_rate", type=float, default=0.01)
 args = parser.parse_args()
 
 if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-    device = torch.device("mps")
+    device = torch.device(f"cuda:{args.device}")
 else:
     device = torch.device("cpu")
 
@@ -36,8 +43,22 @@ transform = T.Compose(
         ),
     ]
 )
-path = osp.join(osp.dirname(osp.realpath(__file__)), "..", "data", "Planetoid")
-dataset = Planetoid(path, args.dataset, transform=transform)
+
+datasets = {}
+datasets["cora"] = Planetoid(
+    root=os.environ["DATASET_DIR"], name="Cora", transform=transform
+)
+datasets["citeseer"] = Planetoid(
+    root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
+)
+datasets["actor"] = Actor(
+    root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
+)
+datasets["facebook"] = FacebookPagePage(
+    root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
+)
+dataset = datasets[args.dataset]
+
 train_data, val_data, test_data = dataset[0]
 
 
@@ -95,7 +116,7 @@ elif args.variational and args.linear:
     model = VGAE(VariationalLinearEncoder(in_channels, out_channels))
 
 model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
 
 
 def train():
