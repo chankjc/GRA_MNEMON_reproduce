@@ -10,8 +10,8 @@ def prepare_dataset():
     dataset = {}
     dataset["cora"] = Planetoid(root=os.environ["DATASET_DIR"], name="Cora")
     dataset["citeseer"] = Planetoid(root=os.environ["DATASET_DIR"], name="CiteSeer")
-    dataset["actor"] = Actor(root=os.environ["DATASET_DIR"])
-    dataset["facebook"] = FacebookPagePage(root=os.environ["DATASET_DIR"])
+    dataset["actor"] = Actor(root=os.environ["DATASET_DIR"] + "/Actor")
+    dataset["facebook"] = FacebookPagePage(root=os.environ["DATASET_DIR"] + "/Facebook")
     return dataset
 
 
