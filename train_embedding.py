@@ -17,6 +17,7 @@ def prepare_dataset():
 
 def main():
     dataset = prepare_dataset()
+    breakpoint()
     print(dataset["cora"].x)
 
 
