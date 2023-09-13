@@ -1,5 +1,6 @@
-import torch
 import numpy as np
+import torch
+
 
 def graph_laplacian_regularization(adjacency_matrix, embedding_matrix):
     """
