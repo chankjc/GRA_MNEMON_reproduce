@@ -43,6 +43,7 @@ torch.manual_seed(args.seed)
 
 if torch.cuda.is_available():
     device = torch.device(f"cuda:{args.device}")
+    torch.cuda.manual_seed_all(args.seed)
 else:
     device = torch.device("cpu")
 

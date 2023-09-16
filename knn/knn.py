@@ -32,10 +32,14 @@ parser.add_argument(
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--k", type=int, default=8)
 parser.add_argument("--distance", type=str, default="cosine")
+parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
+
+torch.manual_seed(args.seed)
 
 if torch.cuda.is_available():
     device = torch.device(f"cuda:{args.device}")
+    torch.cuda.manual_seed_all(args.seed)
 else:
     device = torch.device("cpu")
 
