@@ -1,20 +1,45 @@
 import argparse
+import heapq
 import os
 import os.path as osp
 import time
 
 import torch
+import torch.nn.functional as F
 import torch_geometric.transforms as T
 from dotenv import load_dotenv
 from sklearn.metrics import roc_auc_score
+from scipy import spatial
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import negative_sampling
+from tqdm import tqdm
 
 load_dotenv()
-from dgl.nn.pytorch.factory import KNNGraph
-
 from metric.confusion_matrix import confusion_matrix
+
+
+def distance(x, dist):
+    if dist == "cosine":
+        x_norm = F.normalize(x, p=2, dim=1)
+        result = torch.mm(x_norm, x_norm.transpose(0, 1))
+    return result
+
+def top_k(x, k, dist):
+    edge = [[],[]]
+    num_node = x.shape[0]
+    pq = []
+    pairwire = distance(x, dist)
+    for i in tqdm(range(num_node)):
+        for j in range(num_node):
+            pq.append((pairwire[i][j], i, j))
+    
+    top_k_pair = heapq.nlargest((k * num_node) // 2, pq, key=lambda x: x[0])
+    for dis, i , j in top_k_pair:
+        edge[0].append(i)
+        edge[1].append(j)
+
+    return edge
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -79,9 +104,8 @@ embedding = embeddings[args.dataset]
 num_nodes, num_features = dataset.x.shape
 real_edges = dataset.edge_index
 
-knng = KNNGraph(args.k+1)
-reconstruct_graph = knng(dataset.x, dist=args.distance)
-reconstruct_edge = reconstruct_graph.edges()
+reconstruct_edge = top_k(dataset.x, args.k+1, dist=args.distance)
+
 precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
 
 print("\n")

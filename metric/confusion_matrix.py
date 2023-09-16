@@ -1,5 +1,6 @@
 from tqdm import tqdm
 
+
 def confusion_matrix(reconstruct_edge, real_edges):
     reconstruct_edge_size = len(reconstruct_edge[0])
     real_edges_size = len(real_edges[0])

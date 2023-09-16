@@ -4,13 +4,12 @@ import os.path as osp
 import time
 
 import gumble_sampling as gs
+import loss
 import torch
 import torch_geometric.transforms as T
 from dotenv import load_dotenv
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
-
-import loss
 
 load_dotenv()
 
