@@ -36,7 +36,10 @@ parser.add_argument("--learn_rate", type=float, default=0.01)
 parser.add_argument("--temperature", type=float, default=4.0)
 parser.add_argument("--k", type=int, default=8)
 parser.add_argument("--distance", type=str, default="cosine")
+parser.add_argument("--seed", type=int, default=42)
 args = parser.parse_args()
+
+torch.manual_seed(args.seed)
 
 if torch.cuda.is_available():
     device = torch.device(f"cuda:{args.device}")
@@ -81,14 +84,17 @@ embedding = embeddings[args.dataset]
 x = dataset.x
 real_edges = dataset.edge_index
 
-# first step
+# first step: init
 init_reconstruct_edges = gs.gumble_sampling(dataset.x, args.temperature, args.k + 1)
-
-precision, recall, f1_score = confusion_matrix(init_reconstruct_edges, real_edges)
-
+init_reconstruct_edges = torch.tensor(init_reconstruct_edges).to(device)
+print(args)
 print("\n")
+print("first step:")
+precision, recall, f1_score = confusion_matrix(init_reconstruct_edges, real_edges)
 exit()
-# third step
+
+#second step: GML
+# third step: GAE
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
