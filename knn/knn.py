@@ -22,6 +22,12 @@ parser.add_argument(
     default="cora",
     choices=["cora", "citeseer", "actor", "facebook"],
 )
+parser.add_argument(
+    "--algorithm",
+    type=str,
+    default="gcn",
+    choices=["gcn"],
+)
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--k", type=int, default=8)
 parser.add_argument("--distance", type=str, default="cosine")
@@ -45,25 +51,28 @@ transform = T.Compose(
         ),
     ]
 )
+print("KNN recover method:")
+print(args)
 
 datasets = {}
 embeddings = {}
+algo = args.algorithm
 datasets["cora"] = Planetoid(
     root=os.environ["DATASET_DIR"], name="Cora", transform=transform
 )
-embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/cora/data.pt")
+embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/cora/data.pt")
 datasets["citeseer"] = Planetoid(
     root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
 )
-embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/citeseer/data.pt")
+embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
 datasets["actor"] = Actor(
     root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
 )
-embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/actor/data.pt")
+embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
 datasets["facebook"] = FacebookPagePage(
     root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
 )
-embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/facebook/data.pt")
+embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
 dataset = datasets[args.dataset]
 embedding = embeddings[args.dataset]
 num_nodes, num_features = dataset.x.shape
@@ -73,3 +82,5 @@ knng = KNNGraph(args.k+1)
 reconstruct_graph = knng(dataset.x, dist=args.distance)
 reconstruct_edge = reconstruct_graph.edges()
 precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
+
+print("\n")

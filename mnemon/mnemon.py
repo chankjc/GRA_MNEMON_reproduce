@@ -61,19 +61,19 @@ algo = args.algorithm
 datasets["cora"] = Planetoid(
     root=os.environ["DATASET_DIR"], name="Cora", transform=transform
 )
-embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/cora/data.pt")
+embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/cora/data.pt")
 datasets["citeseer"] = Planetoid(
     root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
 )
-embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/citeseer/data.pt")
+embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
 datasets["actor"] = Actor(
     root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
 )
-embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/actor/data.pt")
+embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
 datasets["facebook"] = FacebookPagePage(
     root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
 )
-embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}gcn/facebook/data.pt")
+embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
 dataset = datasets[args.dataset]
 embedding = embeddings[args.dataset]
 

@@ -8,9 +8,13 @@ def confusion_matrix(reconstruct_edge, real_edges):
     real_edges_set = set()
     
     for i in tqdm(range(reconstruct_edge_size)):
+        if reconstruct_edge[0][i] == reconstruct_edge[1][i]:
+            continue
         reconstruct_edge_set.add((int(reconstruct_edge[0][i]), int(reconstruct_edge[1][i])))
         
     for i in tqdm(range(real_edges_size)):
+        if real_edges[0][i] == real_edges[1][i]:
+            continue
         real_edges_set.add((int(real_edges[0][i]), int(real_edges[1][i])))
 
     tp = reconstruct_edge_set.intersection(real_edges_set)
