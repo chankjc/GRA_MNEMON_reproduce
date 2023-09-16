@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-python mnemon.py --dataset=cora --algorithm=gcn --k=8
-python mnemon.py --dataset=citeseer --algorithm=gcn --k=5 
-python mnemon.py --dataset=actor --algorithm=gcn --k=8
-python mnemon.py --dataset=facebook --algorithm=gcn --k=30
+python -m mnemon.mnemon --dataset=cora --algorithm=gcn --k=4
+python -m mnemon.mnemon --dataset=citeseer --algorithm=gcn --k=3 
+python -m mnemon.mnemon --dataset=actor --algorithm=gcn --k=4
+python -m mnemon.mnemon --dataset=facebook --algorithm=gcn --k=15

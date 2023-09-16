@@ -3,13 +3,15 @@ import os
 import os.path as osp
 import time
 
-import gumble_sampling as gs
-import loss
 import torch
 import torch_geometric.transforms as T
 from dotenv import load_dotenv
+from metric.confusion_matrix import confusion_matrix
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
+
+import mnemon.gumble_sampling as gs
+import mnemon.loss
 
 load_dotenv()
 
@@ -26,13 +28,14 @@ parser.add_argument(
     "--algorithm",
     type=str,
     default="gcn",
-    choices=["cora", "citeseer", "actor", "facebook"],
+    choices=["gcn"],
 )
 parser.add_argument("--epochs", type=int, default=400)
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--learn_rate", type=float, default=0.01)
-parser.add_argument("--temperature", type=float, default=1.0)
+parser.add_argument("--temperature", type=float, default=4.0)
 parser.add_argument("--k", type=int, default=8)
+parser.add_argument("--distance", type=str, default="cosine")
 args = parser.parse_args()
 
 if torch.cuda.is_available():
@@ -75,10 +78,16 @@ datasets["facebook"] = FacebookPagePage(
 embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
 dataset = datasets[args.dataset]
 embedding = embeddings[args.dataset]
+x = dataset.x
+real_edges = dataset.edge_index
 
 # first step
-init_g = gs.gumble_sampling(dataset.x, args.temperature, args.k)
+init_reconstruct_edges = gs.gumble_sampling(dataset.x, args.temperature, args.k + 1)
 
+precision, recall, f1_score = confusion_matrix(init_reconstruct_edges, real_edges)
+
+print("\n")
+exit()
 # third step
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
