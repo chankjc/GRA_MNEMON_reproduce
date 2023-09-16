@@ -28,16 +28,12 @@ def distance(x, dist):
 def top_k(x, k, dist):
     edge = [[],[]]
     num_node = x.shape[0]
-    pq = []
     pairwire = distance(x, dist)
-    for i in tqdm(range(num_node)):
-        for j in range(num_node):
-            pq.append((pairwire[i][j], i, j))
-    
-    top_k_pair = heapq.nlargest((k * num_node) // 2, pq, key=lambda x: x[0])
-    for dis, i , j in top_k_pair:
-        edge[0].append(i)
-        edge[1].append(j)
+    values, indices = torch.topk(pairwire.flatten(), (k * num_node) // 2)
+
+    for ind in indices:
+        edge[0].append(ind // num_node)
+        edge[1].append(ind % num_node)
 
     return edge
 
@@ -77,7 +73,7 @@ transform = T.Compose(
         ),
     ]
 )
-print("KNN recover method:")
+print("direct recover method:")
 print(args)
 
 datasets = {}
