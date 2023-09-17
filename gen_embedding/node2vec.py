@@ -73,10 +73,10 @@ model = Node2Vec(
     sparse=True,
 ).to(device)
 
-num_workers = 0 if sys.platform.startswith('win') else 4
-loader = model.loader(batch_size=128, shuffle=True,
-                    num_workers=num_workers)
+num_workers = 0 if sys.platform.startswith("win") else 4
+loader = model.loader(batch_size=128, shuffle=True, num_workers=num_workers)
 optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
+
 
 def train():
     model.train()
@@ -89,14 +89,20 @@ def train():
         total_loss += loss.item()
     return total_loss / len(loader)
 
+
 @torch.no_grad()
 def test():
     model.eval()
     z = model()
-    acc = model.test(z[data.train_mask], data.y[data.train_mask],
-                    z[data.test_mask], data.y[data.test_mask],
-                    max_iter=150)
+    acc = model.test(
+        z[data.train_mask],
+        data.y[data.train_mask],
+        z[data.test_mask],
+        data.y[data.test_mask],
+        max_iter=150,
+    )
     return acc
+
 
 @torch.no_grad()
 def plot_points(colors):
@@ -109,5 +115,4 @@ def plot_points(colors):
 for epoch in range(1, args.epochs + 1):
     loss = train()
     acc = test()
-    print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Acc: {acc:.4f}')
-
+    print(f"Epoch: {epoch:03d}, Loss: {loss:.4f}, Acc: {acc:.4f}")

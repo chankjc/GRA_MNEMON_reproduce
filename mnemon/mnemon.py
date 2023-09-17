@@ -57,6 +57,7 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 
+
 def main():
     print("MNEMON method:")
     print(args)
@@ -65,10 +66,12 @@ def main():
     print("| Load dataset |")
     print("================")
     print(f"> dataset: {args.dataset}\n")
-    dataset, embedding, x, real_edges = prepare_dataset(args.dataset, args.algorithm, device = device)
+    dataset, embedding, x, real_edges = prepare_dataset(
+        args.dataset, args.algorithm, device=device
+    )
     num_node = x.shape[0]
     real_embeddind = copy.deepcopy(embedding)
-    
+
     # first step: init
     print("===============================")
     print("| first step: Gumble sampling |")
@@ -82,7 +85,7 @@ def main():
 
     reconstruct_edges = copy.deepcopy(initial_edges)
     new_adj = copy.deepcopy(init_adj)
-    
+
     for round in tqdm(range(1, args.round + 1)):
         tqdm.write("==============")
         tqdm.write(f"> round: {round}")
@@ -101,37 +104,45 @@ def main():
         tqdm.write("=================================")
         tqdm.write("| third step: Graph AutoEncoder |")
         tqdm.write("=================================")
-        
+
         in_channels, out_channels = embedding.shape[1], embedding.shape[1] * 2
 
-        model = load_GAE_model(in_channels, out_channels, variational = args.variational, linear = args.linear)
+        model = load_GAE_model(
+            in_channels, out_channels, variational=args.variational, linear=args.linear
+        )
         model = model.to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
 
         def train(adj, reconstruct_edges, embedding, real_embeddind):
             model.train()
-            old_adj = copy.deepcopy(adj.detach())
             optimizer.zero_grad()
             z = model.encode(embedding, reconstruct_edges)
             new_adj = model.decode(z)
-            
-            # loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device) + rl.graph_reconstruction_loss(new_adj, old_adj)
-            # loss = rl.graph_reconstruction_loss(new_adj, old_adj)
-            # loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
-            loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
+
+            loss = rl.graph_laplacian_regularization(new_adj, real_embeddind)
+            # loss = rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
+            # loss = rl.graph_reconstruction_loss(new_adj, adj)
+            '''
+            loss = (
+                rl.graph_laplacian_regularization(new_adj, real_embeddind)
+                + rl.graph_sparsity_regularization(
+                    new_adj, args.alpha, args.beta, args.device
+                )
+                + rl.graph_reconstruction_loss(new_adj, adj)
+            )
+            '''
             if args.variational:
                 loss = loss + (1 / num_node) * model.kl_loss()
             loss.backward()
             optimizer.step()
             return float(loss)
-        
+
         @torch.no_grad()
         def test(reconstruct_edges, embedding):
             model.eval()
             z = model.encode(embedding, reconstruct_edges)
             new_adj = model.decode(z)
             return new_adj, z
-        
 
         times = []
         for epoch in tqdm(range(1, args.epochs + 1)):
@@ -139,17 +150,20 @@ def main():
             loss = train(new_adj, reconstruct_edges, embedding, real_embeddind)
             if epoch % 50 == 0:
                 tqdm.write(f"GAE => Epoch: {epoch:03d}, Loss: {loss}")
-            
-        
+
         new_adj, embedding = test(reconstruct_edges, embedding)
         new_adj = (1 - args.eta) * init_adj + args.eta * new_adj
         new_adj = torch.clamp(new_adj, 0, 1)
         threadhold = 0.5
-        new_adj = torch.where(new_adj < threadhold, torch.tensor(0.0), torch.where(new_adj >= threadhold, torch.tensor(1.0), new_adj))
-        
+        new_adj = torch.where(
+            new_adj < threadhold,
+            torch.tensor(0.0),
+            torch.where(new_adj >= threadhold, torch.tensor(1.0), new_adj),
+        )
+
         reconstruct_edges = new_adj.nonzero().t().contiguous()
         precision, recall, f1_score = confusion_matrix(reconstruct_edges, real_edges)
-        
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

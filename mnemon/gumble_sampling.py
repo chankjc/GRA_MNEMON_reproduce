@@ -7,8 +7,9 @@ from torch.nn import Module, ModuleList, Sequential
 
 # Euclidean distance
 def pairwise_euclidean_distances(x):
-    dist = torch.cdist(x,x)**2
+    dist = torch.cdist(x, x) ** 2
     return dist, x
+
 
 # Cosine distance
 def pairwise_cosine_distances(x):
@@ -17,24 +18,25 @@ def pairwise_cosine_distances(x):
     dist = 1 - dist
     return dist, x
 
-def gumble_sampling(x, t, k, distance = "cosine"):
+
+def gumble_sampling(x, t, k, distance="cosine"):
     if distance == "euclidean":
         logits, _x = pairwise_euclidean_distances(x)
 
     if distance == "cosine":
         logits, _x = pairwise_cosine_distances(x)
-    
+
     temperature = nn.Parameter(torch.tensor(t).float())
-    b,n = logits.shape 
-    logits = logits * torch.exp(torch.clamp(temperature,-5,5))
-        
+    b, n = logits.shape
+    logits = logits * torch.exp(torch.clamp(temperature, -5, 5))
+
     q = torch.rand_like(logits) + 1e-8
-    
-    lq = (logits-torch.log(-torch.log(q)))
+
+    lq = logits - torch.log(-torch.log(q))
     logprobs, indices = torch.topk(-lq, k + 1)  # 10 x k
-    
-    recover_edge = [[],[]]
-    
+
+    recover_edge = [[], []]
+
     for i in range(b):
         for j in indices[i]:
             recover_edge[1].append(int(i))

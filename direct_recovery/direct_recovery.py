@@ -60,6 +60,7 @@ transform = T.Compose(
     ]
 )
 
+
 def main():
     print("Direct recover method:")
     print(args)
@@ -74,25 +75,32 @@ def main():
     datasets["citeseer"] = Planetoid(
         root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
     )
-    embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
+    embeddings["citeseer"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt"
+    )
     datasets["actor"] = Actor(
         root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
     )
-    embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
+    embeddings["actor"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt"
+    )
     datasets["facebook"] = FacebookPagePage(
         root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
     )
-    embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
+    embeddings["facebook"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt"
+    )
     dataset = datasets[args.dataset]
     embedding = embeddings[args.dataset]
     num_nodes, num_features = dataset.x.shape
     real_edges = dataset.edge_index
 
-    reconstruct_edge = top_k(dataset.x, args.k+1, dist=args.distance)
+    reconstruct_edge = top_k(dataset.x, args.k + 1, dist=args.distance)
 
     precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
 
     print("\n")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

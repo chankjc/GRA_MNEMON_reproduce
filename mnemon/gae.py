@@ -12,6 +12,7 @@ from torch_geometric.nn import GAE, VGAE, GCNConv
 
 load_dotenv()
 
+
 # reference: https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.conv.GCNConv.html
 class GCNEncoder(torch.nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -53,22 +54,29 @@ class VariationalLinearEncoder(torch.nn.Module):
 
     def forward(self, x, edge_index):
         return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
-    
+
+
 class InnerProductDecoder(torch.nn.Module):
     def forward(self, z: Tensor, sigmoid: bool = True):
         value = torch.mm(z, z.transpose(0, 1))
         return torch.sigmoid(value) if sigmoid else value
-    
-def load_GAE_model(in_channels, out_channels, variational = False, linear = False):
+
+
+def load_GAE_model(in_channels, out_channels, variational=False, linear=False):
     if not variational and not linear:
         model = GAE(GCNEncoder(in_channels, out_channels), InnerProductDecoder())
     elif not variational and linear:
         model = GAE(LinearEncoder(in_channels, out_channels), InnerProductDecoder())
     elif variational and not linear:
-        model = VGAE(VariationalGCNEncoder(in_channels, out_channels), InnerProductDecoder())
+        model = VGAE(
+            VariationalGCNEncoder(in_channels, out_channels), InnerProductDecoder()
+        )
     elif variational and linear:
-        model = VGAE(VariationalLinearEncoder(in_channels, out_channels), InnerProductDecoder())
+        model = VGAE(
+            VariationalLinearEncoder(in_channels, out_channels), InnerProductDecoder()
+        )
     return model
+
 
 def main():
     in_channels, out_channels = dataset.num_features, 16
@@ -85,7 +93,6 @@ def main():
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
 
-
     def train():
         model.train()
         optimizer.zero_grad()
@@ -97,13 +104,11 @@ def main():
         optimizer.step()
         return float(loss)
 
-
     @torch.no_grad()
     def test(data):
         model.eval()
         z = model.encode(data.x, data.edge_index)
         return model.test(z, data.pos_edge_label_index, data.neg_edge_label_index)
-
 
     times = []
     for epoch in range(1, args.epochs + 1):
@@ -115,5 +120,6 @@ def main():
 
     print(f"Median time per epoch: {torch.tensor(times).median():.4f}s")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

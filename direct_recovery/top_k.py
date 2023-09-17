@@ -8,8 +8,9 @@ def distance(x, dist):
         result = torch.mm(x_norm, x_norm.transpose(0, 1))
     return result
 
+
 def top_k(x, k, dist):
-    edge = [[],[]]
+    edge = [[], []]
     num_node = x.shape[0]
     pairwire = distance(x, dist)
     values, indices = torch.topk(pairwire.flatten(), (k * num_node) // 2)

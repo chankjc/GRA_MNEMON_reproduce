@@ -1,2 +1,1 @@
 from invert import *
-

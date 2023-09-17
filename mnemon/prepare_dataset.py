@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 
 
-def prepare_dataset(name = "cora", algo = "gcn", device = "cuda:0"):
-    
+def prepare_dataset(name="cora", algo="gcn", device="cuda:0"):
     transform = T.Compose(
         [
             T.NormalizeFeatures(),
@@ -32,14 +31,20 @@ def prepare_dataset(name = "cora", algo = "gcn", device = "cuda:0"):
     datasets["citeseer"] = Planetoid(
         root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
     )
-    embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
+    embeddings["citeseer"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt"
+    )
     datasets["actor"] = Actor(
         root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
     )
-    embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
+    embeddings["actor"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt"
+    )
     datasets["facebook"] = FacebookPagePage(
         root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
     )
-    embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
-    
+    embeddings["facebook"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt"
+    )
+
     return datasets[name], embeddings[name], datasets[name].x, datasets[name].edge_index

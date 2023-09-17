@@ -55,7 +55,7 @@ graphs["cora"] = torch.load(f"{os.environ['RESULT_DIR']}gcn/cora/graph.pt")
 
 dataset = datasets[args.dataset]
 n = len(dataset.y)
-reference_graph = torch.zeros(n,n)
+reference_graph = torch.zeros(n, n)
 for ind in range(len(dataset.edge_index[0])):
     i = dataset.edge_index[0][ind]
     j = dataset.edge_index[1][ind]
@@ -66,6 +66,6 @@ graph = graphs[args.dataset]
 g1 = torch.flatten(graph)
 breakpoint()
 tn, fp, fn, tp = confusion_matrix(r1, g1).ravel()
-print("prec:", tp/(tp + fp))
-print("recall:", tp/(tp + fn))
+print("prec:", tp / (tp + fp))
+print("recall:", tp / (tp + fn))
 breakpoint()

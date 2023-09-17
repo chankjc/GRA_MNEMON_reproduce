@@ -57,6 +57,7 @@ transform = T.Compose(
     ]
 )
 
+
 def main():
     print("KNN recover method:")
     print(args)
@@ -71,26 +72,33 @@ def main():
     datasets["citeseer"] = Planetoid(
         root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
     )
-    embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
+    embeddings["citeseer"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt"
+    )
     datasets["actor"] = Actor(
         root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
     )
-    embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
+    embeddings["actor"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt"
+    )
     datasets["facebook"] = FacebookPagePage(
         root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
     )
-    embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
+    embeddings["facebook"] = torch.load(
+        f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt"
+    )
     dataset = datasets[args.dataset]
     embedding = embeddings[args.dataset]
     num_nodes, num_features = dataset.x.shape
     real_edges = dataset.edge_index
 
-    knng = KNNGraph(args.k+1)
+    knng = KNNGraph(args.k + 1)
     reconstruct_graph = knng(dataset.x, dist=args.distance)
     reconstruct_edge = reconstruct_graph.edges()
     precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
 
     print("\n")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
