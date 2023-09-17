@@ -3,7 +3,6 @@ import os.path as osp
 import time
 
 import torch
-
 import torch_geometric.transforms as T
 from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv

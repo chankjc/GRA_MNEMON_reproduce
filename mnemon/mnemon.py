@@ -1,9 +1,8 @@
 import argparse
+import copy
 import os
 import os.path as osp
 import time
-import copy
-from tqdm import tqdm
 
 import torch
 import torch_geometric.transforms as T
@@ -11,11 +10,13 @@ from dotenv import load_dotenv
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
 from torch_geometric.utils import to_scipy_sparse_matrix
+from tqdm import tqdm
 
 import mnemon.gumble_sampling as gs
 import mnemon.reconstruct_loss as rl
 from metric.confusion_matrix import confusion_matrix
 from mnemon.gae import *
+from mnemon.gml import *
 from mnemon.prepare_dataset import prepare_dataset
 
 load_dotenv()
@@ -35,7 +36,8 @@ parser.add_argument(
     default="gcn",
     choices=["gcn"],
 )
-parser.add_argument("--epochs", type=int, default=10000)
+parser.add_argument("--gae_epochs", type=int, default=10000)
+parser.add_argument("--gml_epochs", type=int, default=10000)
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--learn_rate", type=float, default=0.01)
 parser.add_argument("--temperature", type=float, default=4.0)
@@ -48,6 +50,7 @@ parser.add_argument("--beta", type=float, default=0.1)
 parser.add_argument("--eta", type=float, default=0.5)
 parser.add_argument("--round", type=int, default=10)
 parser.add_argument("--threadhold", type=float, default=0.7)
+parser.add_argument("--m", type=int, default=16)
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -70,7 +73,8 @@ def main():
     dataset, embedding, x, real_edges = prepare_dataset(
         args.dataset, args.algorithm, device=device
     )
-    num_node = x.shape[0]
+    num_node, embedding_dim = embedding.shape
+    
     real_embeddind = copy.deepcopy(embedding)
 
     # first step: init
@@ -96,7 +100,28 @@ def main():
         tqdm.write("| second step: Graph Metric Learning |")
         tqdm.write("======================================")
         if not args.without_gml:
-            tqdm.write("> w GML")
+            model_gml = load_GML_model(embedding_dim, args.m)
+            optimizer_gml = torch.optim.Adam(model_gml.parameters(), lr=args.learn_rate)
+            
+            def train_GML(model_gml, optimizer_gml, reconstruct_edges, embedding):
+                model_gml.train()
+
+            @torch.no_grad()
+            def test_GML(model_gml, embedding):
+                model_gml.eval()
+
+            for epoch in tqdm(range(1, args.gml_epochs + 1)):
+                loss = train_GML(model_gml, optimizer_gml, reconstruct_edges, embedding)
+                if epoch % 50 == 0:
+                    tqdm.write(f"GML => Epoch: {epoch:03d}, Loss: {loss}")
+
+            reconstruct_edges = test_GML(model_gml, embedding)
+            new_adj = to_scipy_sparse_matrix(reconstruct_edges)
+            new_adj = new_adj.toarray()
+            new_adj = torch.from_numpy(new_adj).to(device)
+
+            precision, recall, f1_score = confusion_matrix(reconstruct_edges, real_edges)
+
         else:
             tqdm.write("> w/o GML!")
 
@@ -108,17 +133,17 @@ def main():
 
         in_channels, out_channels = embedding.shape[1], embedding.shape[1] * 2
 
-        model = load_GAE_model(
+        model_gae = load_GAE_model(
             in_channels, out_channels, variational=args.variational, linear=args.linear
         )
-        model = model.to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
+        model_gae = model_gae.to(device)
+        optimizer_gae = torch.optim.Adam(model_gae.parameters(), lr=args.learn_rate)
 
-        def train(adj, reconstruct_edges, embedding, real_embeddind):
-            model.train()
-            optimizer.zero_grad()
-            z = model.encode(embedding, reconstruct_edges)
-            new_adj = model.decode(z)
+        def train_GAE(model_gae, optimizer_gae, adj, reconstruct_edges, embedding, real_embeddind):
+            model_gae.train()
+            optimizer_gae.zero_grad()
+            z = model_gae.encode(embedding, reconstruct_edges)
+            new_adj = model_gae.decode(z)
 
             loss = rl.graph_laplacian_regularization(new_adj, real_embeddind)
             # loss = rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
@@ -133,26 +158,26 @@ def main():
             )
             '''
             if args.variational:
-                loss = loss + (1 / num_node) * model.kl_loss()
+                loss = loss + (1 / num_node) * model_gae.kl_loss()
             loss.backward()
-            optimizer.step()
+            optimizer_gae.step()
             return float(loss)
 
         @torch.no_grad()
-        def test(reconstruct_edges, embedding):
-            model.eval()
-            z = model.encode(embedding, reconstruct_edges)
-            new_adj = model.decode(z)
+        def test_GAE(model_gae, reconstruct_edges, embedding):
+            model_gae.eval()
+            z = model_gae.encode(embedding, reconstruct_edges)
+            new_adj = model_gae.decode(z)
             return new_adj, z
 
         times = []
-        for epoch in tqdm(range(1, args.epochs + 1)):
+        for epoch in tqdm(range(1, args.gae_epochs + 1)):
             start = time.time()
-            loss = train(new_adj, reconstruct_edges, embedding, real_embeddind)
+            loss = train_GAE(model_gae, optimizer_gae, new_adj, reconstruct_edges, embedding, real_embeddind)
             if epoch % 50 == 0:
                 tqdm.write(f"GAE => Epoch: {epoch:03d}, Loss: {loss}")
 
-        new_adj, embedding = test(reconstruct_edges, embedding)
+        new_adj, embedding = test_GAE(model_gae, reconstruct_edges, embedding)
         new_adj = (1 - args.eta) * init_adj + args.eta * new_adj
         new_adj = torch.clamp(new_adj, 0, 1)
         threadhold = args.threadhold
