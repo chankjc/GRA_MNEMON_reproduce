@@ -48,7 +48,5 @@ def graph_reconstruction_loss(adjacency_matrix_new, adjacency_matrix_old):
     ) + torch.multiply(
         (1 - adjacency_matrix_old), (1 - torch.log(1 - adjacency_matrix_new))
     )
-    temp[temp == float("inf")] = 0
-
     loss = torch.linalg.norm(temp) ** 2 / (1 / 2 * (n**2))
     return loss

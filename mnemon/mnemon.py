@@ -47,7 +47,7 @@ parser.add_argument("--alpha", type=float, default=0.3)
 parser.add_argument("--beta", type=float, default=0.1)
 parser.add_argument("--eta", type=float, default=0.5)
 parser.add_argument("--round", type=int, default=10)
-parser.add_argument("--threadhold", type=float, default=0.5)
+parser.add_argument("--threadhold", type=float, default=0.7)
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
