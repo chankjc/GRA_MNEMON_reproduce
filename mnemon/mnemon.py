@@ -47,6 +47,7 @@ parser.add_argument("--alpha", type=float, default=0.3)
 parser.add_argument("--beta", type=float, default=0.1)
 parser.add_argument("--eta", type=float, default=0.5)
 parser.add_argument("--round", type=int, default=10)
+parser.add_argument("--threadhold", type=float, default=0.4)
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -154,7 +155,7 @@ def main():
         new_adj, embedding = test(reconstruct_edges, embedding)
         new_adj = (1 - args.eta) * init_adj + args.eta * new_adj
         new_adj = torch.clamp(new_adj, 0, 1)
-        threadhold = 0.5
+        threadhold = args.threadhold
         new_adj = torch.where(
             new_adj < threadhold,
             torch.tensor(0.0),
