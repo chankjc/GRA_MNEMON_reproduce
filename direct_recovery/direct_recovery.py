@@ -8,17 +8,16 @@ import torch
 import torch.nn.functional as F
 import torch_geometric.transforms as T
 from dotenv import load_dotenv
-from sklearn.metrics import roc_auc_score
 from scipy import spatial
+from sklearn.metrics import roc_auc_score
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import negative_sampling
 from tqdm import tqdm
 
 load_dotenv()
-from metric.confusion_matrix import confusion_matrix
 from direct_recovery.top_k import top_k
-
+from metric.confusion_matrix import confusion_matrix
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -60,35 +59,40 @@ transform = T.Compose(
         ),
     ]
 )
-print("direct recover method:")
-print(args)
 
-datasets = {}
-embeddings = {}
-algo = args.algorithm
-datasets["cora"] = Planetoid(
-    root=os.environ["DATASET_DIR"], name="Cora", transform=transform
-)
-embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/cora/data.pt")
-datasets["citeseer"] = Planetoid(
-    root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
-)
-embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
-datasets["actor"] = Actor(
-    root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
-)
-embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
-datasets["facebook"] = FacebookPagePage(
-    root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
-)
-embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
-dataset = datasets[args.dataset]
-embedding = embeddings[args.dataset]
-num_nodes, num_features = dataset.x.shape
-real_edges = dataset.edge_index
+def main():
+    print("Direct recover method:")
+    print(args)
 
-reconstruct_edge = top_k(dataset.x, args.k+1, dist=args.distance)
+    datasets = {}
+    embeddings = {}
+    algo = args.algorithm
+    datasets["cora"] = Planetoid(
+        root=os.environ["DATASET_DIR"], name="Cora", transform=transform
+    )
+    embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/cora/data.pt")
+    datasets["citeseer"] = Planetoid(
+        root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
+    )
+    embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
+    datasets["actor"] = Actor(
+        root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
+    )
+    embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
+    datasets["facebook"] = FacebookPagePage(
+        root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
+    )
+    embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
+    dataset = datasets[args.dataset]
+    embedding = embeddings[args.dataset]
+    num_nodes, num_features = dataset.x.shape
+    real_edges = dataset.edge_index
 
-precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
+    reconstruct_edge = top_k(dataset.x, args.k+1, dist=args.distance)
 
-print("\n")
+    precision, recall, f1_score = confusion_matrix(reconstruct_edge, real_edges)
+
+    print("\n")
+
+if __name__ == '__main__':
+    main()

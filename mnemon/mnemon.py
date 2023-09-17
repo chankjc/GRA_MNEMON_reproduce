@@ -2,16 +2,21 @@ import argparse
 import os
 import os.path as osp
 import time
+import copy
+from tqdm import tqdm
 
 import torch
 import torch_geometric.transforms as T
 from dotenv import load_dotenv
-from metric.confusion_matrix import confusion_matrix
 from torch_geometric.datasets import Actor, FacebookPagePage, Planetoid
 from torch_geometric.nn import GAE, VGAE, GCNConv
+from torch_geometric.utils import to_scipy_sparse_matrix
 
 import mnemon.gumble_sampling as gs
-import mnemon.loss
+import mnemon.reconstruct_loss as rl
+from metric.confusion_matrix import confusion_matrix
+from mnemon.gae import *
+from mnemon.prepare_dataset import prepare_dataset
 
 load_dotenv()
 
@@ -30,13 +35,18 @@ parser.add_argument(
     default="gcn",
     choices=["gcn"],
 )
-parser.add_argument("--epochs", type=int, default=400)
+parser.add_argument("--epochs", type=int, default=10000)
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--learn_rate", type=float, default=0.01)
 parser.add_argument("--temperature", type=float, default=4.0)
-parser.add_argument("--k", type=int, default=8)
+parser.add_argument("--k", type=int, default=4)
 parser.add_argument("--distance", type=str, default="cosine")
 parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--without_gml", action="store_true")
+parser.add_argument("--alpha", type=float, default=0.3)
+parser.add_argument("--beta", type=float, default=0.1)
+parser.add_argument("--eta", type=float, default=0.5)
+parser.add_argument("--round", type=int, default=10)
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -47,143 +57,99 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
 
-transform = T.Compose(
-    [
-        T.NormalizeFeatures(),
-        T.ToDevice(device),
-        T.RandomLinkSplit(
-            num_val=0.05,
-            num_test=0.1,
-            is_undirected=True,
-            split_labels=True,
-            add_negative_train_samples=False,
-        ),
-    ]
-)
+def main():
+    print("MNEMON method:")
+    print(args)
 
-datasets = {}
-embeddings = {}
-algo = args.algorithm
-datasets["cora"] = Planetoid(
-    root=os.environ["DATASET_DIR"], name="Cora", transform=transform
-)
-embeddings["cora"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/cora/data.pt")
-datasets["citeseer"] = Planetoid(
-    root=os.environ["DATASET_DIR"], name="CiteSeer", transform=transform
-)
-embeddings["citeseer"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/citeseer/data.pt")
-datasets["actor"] = Actor(
-    root=os.environ["DATASET_DIR"] + "/Actor", transform=transform
-)
-embeddings["actor"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/actor/data.pt")
-datasets["facebook"] = FacebookPagePage(
-    root=os.environ["DATASET_DIR"] + "/Facebook", transform=transform
-)
-embeddings["facebook"] = torch.load(f"{os.environ['EMBEDDING_DIR']}{algo}/facebook/data.pt")
-dataset = datasets[args.dataset]
-embedding = embeddings[args.dataset]
-x = dataset.x
-real_edges = dataset.edge_index
+    print("================")
+    print("| Load dataset |")
+    print("================")
+    print(f"> dataset: {args.dataset}\n")
+    dataset, embedding, x, real_edges = prepare_dataset(args.dataset, args.algorithm, device = device)
+    num_node = x.shape[0]
+    real_embeddind = copy.deepcopy(embedding)
+    
+    # first step: init
+    print("===============================")
+    print("| first step: Gumble sampling |")
+    print("===============================")
+    initial_edges = gs.gumble_sampling(dataset.x, args.temperature, args.k + 1)
+    initial_edges = torch.tensor(initial_edges).to(device)
+    precision, recall, f1_score = confusion_matrix(initial_edges, real_edges)
+    init_adj = to_scipy_sparse_matrix(initial_edges)
+    init_adj = init_adj.toarray()
+    init_adj = torch.from_numpy(init_adj).to(device)
 
-# first step: init
-init_reconstruct_edges = gs.gumble_sampling(dataset.x, args.temperature, args.k + 1)
-init_reconstruct_edges = torch.tensor(init_reconstruct_edges).to(device)
-print(args)
-print("\n")
-print("first step:")
-precision, recall, f1_score = confusion_matrix(init_reconstruct_edges, real_edges)
-exit()
+    reconstruct_edges = copy.deepcopy(initial_edges)
+    new_adj = copy.deepcopy(init_adj)
+    
+    for round in tqdm(range(1, args.round + 1)):
+        tqdm.write("==============")
+        tqdm.write(f"> round: {round}")
+        tqdm.write("==============")
+        # second step: GML
+        tqdm.write("======================================")
+        tqdm.write("| second step: Graph Metric Learning |")
+        tqdm.write("======================================")
+        if not args.without_gml:
+            tqdm.write("> w GML")
+        else:
+            tqdm.write("> w/o GML!")
 
-#second step: GML
-# third step: GAE
-class GCNEncoder(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv1 = GCNConv(in_channels, 2 * out_channels)
-        self.conv2 = GCNConv(2 * out_channels, out_channels)
+        # third step: GAE
+        # reference: https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/autoencoder.html
+        tqdm.write("=================================")
+        tqdm.write("| third step: Graph AutoEncoder |")
+        tqdm.write("=================================")
+        
+        in_channels, out_channels = embedding.shape[1], embedding.shape[1] * 2
 
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index).relu()
-        return self.conv2(x, edge_index)
+        model = load_GAE_model(in_channels, out_channels, variational = args.variational, linear = args.linear)
+        model = model.to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
 
+        def train(adj, reconstruct_edges, embedding, real_embeddind):
+            model.train()
+            old_adj = copy.deepcopy(adj.detach())
+            optimizer.zero_grad()
+            z = model.encode(embedding, reconstruct_edges)
+            new_adj = model.decode(z)
+            
+            # loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device) + rl.graph_reconstruction_loss(new_adj, old_adj)
+            # loss = rl.graph_reconstruction_loss(new_adj, old_adj)
+            # loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
+            loss = rl.graph_laplacian_regularization(new_adj, real_embeddind) + rl.graph_sparsity_regularization(new_adj, args.alpha, args.beta, args.device)
+            if args.variational:
+                loss = loss + (1 / num_node) * model.kl_loss()
+            loss.backward()
+            optimizer.step()
+            return float(loss)
+        
+        @torch.no_grad()
+        def test(reconstruct_edges, embedding):
+            model.eval()
+            z = model.encode(embedding, reconstruct_edges)
+            new_adj = model.decode(z)
+            return new_adj, z
+        
 
-class VariationalGCNEncoder(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv1 = GCNConv(in_channels, 2 * out_channels)
-        self.conv_mu = GCNConv(2 * out_channels, out_channels)
-        self.conv_logstd = GCNConv(2 * out_channels, out_channels)
+        times = []
+        for epoch in tqdm(range(1, args.epochs + 1)):
+            start = time.time()
+            loss = train(new_adj, reconstruct_edges, embedding, real_embeddind)
+            if epoch % 50 == 0:
+                tqdm.write(f"GAE => Epoch: {epoch:03d}, Loss: {loss}")
+            
+        
+        new_adj, embedding = test(reconstruct_edges, embedding)
+        new_adj = (1 - args.eta) * init_adj + args.eta * new_adj
+        new_adj = torch.clamp(new_adj, 0, 1)
+        threadhold = 0.5
+        new_adj = torch.where(new_adj < threadhold, torch.tensor(0.0), torch.where(new_adj >= threadhold, torch.tensor(1.0), new_adj))
+        
+        reconstruct_edges = new_adj.nonzero().t().contiguous()
+        precision, recall, f1_score = confusion_matrix(reconstruct_edges, real_edges)
+        
 
-    def forward(self, x, edge_index):
-        x = self.conv1(x, edge_index).relu()
-        return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
-
-
-class LinearEncoder(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv = GCNConv(in_channels, out_channels)
-
-    def forward(self, x, edge_index):
-        return self.conv(x, edge_index)
-
-
-class VariationalLinearEncoder(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv_mu = GCNConv(in_channels, out_channels)
-        self.conv_logstd = GCNConv(in_channels, out_channels)
-
-    def forward(self, x, edge_index):
-        return self.conv_mu(x, edge_index), self.conv_logstd(x, edge_index)
-
-in_channels, out_channels = dataset.num_features, 16
-
-if not args.variational and not args.linear:
-    model = GAE(GCNEncoder(in_channels, out_channels))
-elif not args.variational and args.linear:
-    model = GAE(LinearEncoder(in_channels, out_channels))
-elif args.variational and not args.linear:
-    model = VGAE(VariationalGCNEncoder(in_channels, out_channels))
-elif args.variational and args.linear:
-    model = VGAE(VariationalLinearEncoder(in_channels, out_channels))
-
-model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=args.learn_rate)
-
-
-def train():
-    model.train()
-    optimizer.zero_grad()
-    z = model.encode(train_data.x, train_data.edge_index)
-    '''
-        todo
-    '''
-    loss = model.recon_loss(z, train_data.pos_edge_label_index)
-    if args.variational:
-        loss = loss + (1 / train_data.num_nodes) * model.kl_loss()
-    loss.backward()
-    optimizer.step()
-    return float(loss)
-
-
-@torch.no_grad()
-def test(data):
-    model.eval()
-    z = model.encode(data.x, data.edge_index)
-    return model.test(z, data.pos_edge_label_index, data.neg_edge_label_index)
-
-
-times = []
-for epoch in range(1, args.epochs + 1):
-    start = time.time()
-    loss = train()
-    auc, ap = test(test_data)
-    print(f"Epoch: {epoch:03d}, AUC: {auc:.4f}, AP: {ap:.4f}")
-    times.append(time.time() - start)
-
-print(f"Median time per epoch: {torch.tensor(times).median():.4f}s")
-
-
-
-# torch.save(init_g, f"{os.environ['RESULT_DIR']}gcn/{args.dataset}/graph.pt")
+if __name__ == '__main__':
+    main()
