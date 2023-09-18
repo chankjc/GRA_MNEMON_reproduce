@@ -15,7 +15,7 @@ def pairwise_euclidean_distances(x):
 def pairwise_cosine_distances(x):
     x_norm = F.normalize(x, p=2, dim=1)
     dist = torch.mm(x_norm, x_norm.transpose(0, 1))
-    dist = 1 - dist
+    dist = 1 - dist  + 1e-6
     return dist, x
 
 
@@ -25,6 +25,9 @@ def gumble_sampling(x, t, k, distance="cosine"):
 
     if distance == "cosine":
         logits, _x = pairwise_cosine_distances(x)
+        
+    if distance == "none":
+        logits = x
 
     temperature = nn.Parameter(torch.tensor(t).float())
     b, n = logits.shape

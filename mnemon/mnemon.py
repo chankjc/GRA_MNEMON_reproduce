@@ -37,7 +37,7 @@ parser.add_argument(
     choices=["gcn"],
 )
 parser.add_argument("--gae_epochs", type=int, default=10000)
-parser.add_argument("--gml_epochs", type=int, default=10000)
+parser.add_argument("--gml_epochs", type=int, default=400)
 parser.add_argument("--device", type=int, default=0)
 parser.add_argument("--learn_rate", type=float, default=0.01)
 parser.add_argument("--temperature", type=float, default=4.0)
@@ -81,7 +81,7 @@ def main():
     print("===============================")
     print("| first step: Gumble sampling |")
     print("===============================")
-    initial_edges = gs.gumble_sampling(dataset.x, args.temperature, args.k + 1)
+    initial_edges = gs.gumble_sampling(embedding, args.temperature, args.k + 1)
     initial_edges = torch.tensor(initial_edges).to(device)
     precision, recall, f1_score = confusion_matrix(initial_edges, real_edges)
     init_adj = to_scipy_sparse_matrix(initial_edges)
@@ -101,27 +101,34 @@ def main():
         tqdm.write("======================================")
         if not args.without_gml:
             model_gml = load_GML_model(embedding_dim, args.m)
+            model_gml = model_gml.to(device)
             optimizer_gml = torch.optim.Adam(model_gml.parameters(), lr=args.learn_rate)
             
             def train_GML(model_gml, optimizer_gml, reconstruct_edges, embedding):
                 model_gml.train()
-
+                loss = model_gml(reconstruct_edges, embedding)
+                loss.backward()
+                optimizer_gml.step()
+                return float(loss)
+        
             @torch.no_grad()
             def test_GML(model_gml, embedding):
                 model_gml.eval()
-
+                return model_gml.reconstruct(embedding, args.temperature, args.k + 1)
+            
             for epoch in tqdm(range(1, args.gml_epochs + 1)):
                 loss = train_GML(model_gml, optimizer_gml, reconstruct_edges, embedding)
-                if epoch % 50 == 0:
+                if epoch % 1 == 0:
                     tqdm.write(f"GML => Epoch: {epoch:03d}, Loss: {loss}")
 
             reconstruct_edges = test_GML(model_gml, embedding)
+            reconstruct_edges = torch.tensor(reconstruct_edges).to(device)
             new_adj = to_scipy_sparse_matrix(reconstruct_edges)
             new_adj = new_adj.toarray()
             new_adj = torch.from_numpy(new_adj).to(device)
 
             precision, recall, f1_score = confusion_matrix(reconstruct_edges, real_edges)
-
+            breakpoint()
         else:
             tqdm.write("> w/o GML!")
 
